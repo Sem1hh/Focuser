@@ -77,11 +77,8 @@ export default function ReportsScreen() {
     }
 
     data.forEach(session => {
-      const sessionDate = session.date.split('T')[0]; // Tarih formatına dikkat (ISO string kullanıyorsak)
-      // Eğer storage.js'de toString() yaptıysak buradaki eşleştirme mantığını değiştirmek gerekebilir.
-      // Ama şimdilik ISO formatı varsayıyoruz veya tarih eşleşmesini basit tutuyoruz.
-      // Not: Önceki adımda storage.js'i toString() yaptık. Burada tarih karşılaştırması için
-      // basit bir yöntem kullanalım:
+      const sessionDate = session.date.split('T')[0]; 
+      
       
       const sessDateObj = new Date(session.date);
       const sessDateStr = sessDateObj.toISOString().split('T')[0];

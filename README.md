@@ -48,4 +48,4 @@ Projeyi kendi bilgisayarınızda çalıştırmak için aşağıdaki adımları i
 5. **Test Edin:**
       ```bash 
       Terminalde çıkan QR kodu telefonunuzdaki Expo Go uygulaması ile taratın.
-
+6.
