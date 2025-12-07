@@ -1,22 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, Modal, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 
-// Ekran genişliğine göre boyut ayarlama
+// Ekran boyutları
 const { width } = Dimensions.get('window');
-const CIRCLE_SIZE = width * 0.7; // Ekranın %70'i kadar
+const CIRCLE_SIZE = width * 0.7;
 const STROKE_WIDTH = 15;
 const RADIUS = (CIRCLE_SIZE - STROKE_WIDTH) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export default function HomeScreen() {
+  // --- STATE DEĞİŞKENLERİ ---
   const [initialTime, setInitialTime] = useState(25 * 60); 
   const [timeLeft, setTimeLeft] = useState(25 * 60);       
   const [isActive, setIsActive] = useState(false);         
   const [selectedCategory, setSelectedCategory] = useState('Kodlama');
+  
+  // YENİ: Modal'ın görünürlüğünü kontrol eden state
+  const [modalVisible, setModalVisible] = useState(false);
 
-  // --- SADECE ZAMANLAYICI MANTIĞI ---
+  // Kategori Listesi (Proje dosyasındaki örnekler)
+  const categories = [
+    { id: '1', name: 'Kodlama', icon: 'code-slash' },
+    { id: '2', name: 'Ders Çalışma', icon: 'school' },
+    { id: '3', name: 'Kitap Okuma', icon: 'book' },
+    { id: '4', name: 'Proje', icon: 'briefcase' },
+    { id: '5', name: 'Spor', icon: 'fitness' },
+    { id: '6', name: 'Meditasyon', icon: 'leaf' },
+  ];
+
+  // --- ZAMANLAYICI MANTIĞI ---
   useEffect(() => {
     let interval = null;
     if (isActive && timeLeft > 0) {
@@ -31,7 +45,6 @@ export default function HomeScreen() {
     return () => clearInterval(interval);
   }, [isActive, timeLeft, initialTime]);
 
-  // Yardımcılar
   const formatTime = (seconds) => {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -53,7 +66,12 @@ export default function HomeScreen() {
     setTimeLeft(initialTime);
   };
 
-  // İlerleme Hesabı
+  // Kategori Seçilince Çalışacak Fonksiyon
+  const handleSelectCategory = (categoryName) => {
+    setSelectedCategory(categoryName); // Seçimi güncelle
+    setModalVisible(false); // Pencereyi kapat
+  };
+
   const progress = timeLeft / initialTime; 
   const strokeDashoffset = CIRCUMFERENCE * (1 - progress);
 
@@ -62,17 +80,57 @@ export default function HomeScreen() {
       
       <Text style={styles.headerTitle}>Focuser</Text>
 
+      {/* --- KATEGORİ SEÇİM BUTONU --- */}
       <View style={styles.categoryContainer}>
         <Text style={styles.categoryLabel}>Şu anki Hedef:</Text>
-        <TouchableOpacity style={styles.categoryButton}>
-          <Text style={styles.categoryButtonText}>{selectedCategory}</Text>
+        
+        {/* Tıklayınca Modal açılacak */}
+        <TouchableOpacity 
+          style={styles.categoryButton} 
+          onPress={() => setModalVisible(true)}
+          disabled={isActive} // Sayaç çalışırken kategori değiştirilemez
+        >
+          <Text style={styles.categoryButtonText}>{selectedCategory} ▼</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Sayaç ve Halka */}
+      {/* --- MODAL (AÇILIR PENCERE) --- */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Bir Kategori Seç</Text>
+            
+            <FlatList
+              data={categories}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity 
+                  style={styles.modalItem} 
+                  onPress={() => handleSelectCategory(item.name)}
+                >
+                  <Ionicons name={item.icon} size={24} color="#555" style={{ marginRight: 15 }} />
+                  <Text style={styles.modalItemText}>{item.name}</Text>
+                </TouchableOpacity>
+              )}
+            />
+
+            <TouchableOpacity 
+              style={styles.closeButton} 
+              onPress={() => setModalVisible(false)}
+            >
+              <Text style={styles.closeButtonText}>Kapat</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* --- SAYAÇ --- */}
       <View style={styles.timerWrapper}>
-        
-        {/* Azaltma Butonu */}
         {!isActive && (
           <TouchableOpacity onPress={() => changeTime(-5)} style={styles.adjustButton}>
             <Ionicons name="remove-circle-outline" size={40} color="gray" />
@@ -81,16 +139,7 @@ export default function HomeScreen() {
 
         <View style={styles.svgContainer}>
           <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE}>
-            {/* Gri Arka Plan */}
-            <Circle
-              stroke="#e6e6e6"
-              fill="none"
-              cx={CIRCLE_SIZE / 2}
-              cy={CIRCLE_SIZE / 2}
-              r={RADIUS}
-              strokeWidth={STROKE_WIDTH}
-            />
-            {/* Kırmızı İlerleme */}
+            <Circle stroke="#e6e6e6" fill="none" cx={CIRCLE_SIZE / 2} cy={CIRCLE_SIZE / 2} r={RADIUS} strokeWidth={STROKE_WIDTH} />
             <Circle
               stroke="tomato"
               fill="none"
@@ -105,13 +154,11 @@ export default function HomeScreen() {
               origin={`${CIRCLE_SIZE / 2}, ${CIRCLE_SIZE / 2}`}
             />
           </Svg>
-          
           <View style={styles.textOverlay}>
             <Text style={styles.timerText}>{formatTime(timeLeft)}</Text>
           </View>
         </View>
 
-        {/* Artırma Butonu */}
         {!isActive && (
           <TouchableOpacity onPress={() => changeTime(5)} style={styles.adjustButton}>
             <Ionicons name="add-circle-outline" size={40} color="gray" />
@@ -119,7 +166,7 @@ export default function HomeScreen() {
         )}
       </View>
 
-      {/* Kontrol Butonları */}
+      {/* --- BUTONLAR --- */}
       <View style={styles.buttonContainer}>
         {!isActive ? (
           <TouchableOpacity style={[styles.button, styles.startButton]} onPress={handleStart}>
@@ -143,18 +190,72 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 32, fontWeight: 'bold', marginBottom: 20, color: '#333' },
+  
+  // Kategori Butonu
   categoryContainer: { marginBottom: 20, alignItems: 'center' },
   categoryLabel: { fontSize: 14, color: '#666', marginBottom: 5 },
-  categoryButton: { backgroundColor: '#f0f0f0', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
-  categoryButtonText: { fontSize: 16, fontWeight: '600', color: '#333' },
+  categoryButton: { 
+    backgroundColor: '#f8f9fa', 
+    paddingHorizontal: 25, 
+    paddingVertical: 12, 
+    borderRadius: 25, 
+    borderWidth: 1, 
+    borderColor: '#ddd' 
+  },
+  categoryButtonText: { fontSize: 18, fontWeight: '600', color: '#333' },
 
+  // --- MODAL STİLLERİ ---
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)', // Arka planı karartma
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '80%',
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 20,
+    maxHeight: '60%', // Ekranın %60'ını kaplasın
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    textAlign: 'center',
+    color: '#333',
+  },
+  modalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  modalItemText: {
+    fontSize: 18,
+    color: '#333',
+  },
+  closeButton: {
+    marginTop: 15,
+    backgroundColor: 'tomato',
+    padding: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+
+  // Sayaç Stilleri (Aynı)
   timerWrapper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 40 },
   adjustButton: { padding: 10, zIndex: 10 },
-
   svgContainer: { width: CIRCLE_SIZE, height: CIRCLE_SIZE, alignItems: 'center', justifyContent: 'center' },
   textOverlay: { position: 'absolute', justifyContent: 'center', alignItems: 'center' },
   timerText: { fontSize: 50, fontWeight: 'bold', color: 'tomato' },
-
   buttonContainer: { flexDirection: 'row', gap: 15 },
   button: { paddingVertical: 15, paddingHorizontal: 30, borderRadius: 15, minWidth: 100, alignItems: 'center' },
   startButton: { backgroundColor: '#4CAF50' },
