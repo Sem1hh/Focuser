@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, Modal, FlatList } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, Modal, FlatList, AppState } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 
-// Ekran boyutları
+// Ekran boyutları ve SVG Ayarları
 const { width } = Dimensions.get('window');
 const CIRCLE_SIZE = width * 0.7;
 const STROKE_WIDTH = 15;
@@ -16,11 +16,17 @@ export default function HomeScreen() {
   const [timeLeft, setTimeLeft] = useState(25 * 60);       
   const [isActive, setIsActive] = useState(false);         
   const [selectedCategory, setSelectedCategory] = useState('Kodlama');
-  
-  // YENİ: Modal'ın görünürlüğünü kontrol eden state
   const [modalVisible, setModalVisible] = useState(false);
+  
+  // Dikkat Dağınıklığı Sayısı
+  const [distractionCount, setDistractionCount] = useState(0);
 
-  // Kategori Listesi (Proje dosyasındaki örnekler)
+  // AppState Referansı (Uygulamanın durumu)
+  const appState = useRef(AppState.currentState);
+  // "Kullanıcı az önce çıktı mı?" kontrolü için bayrak
+  const didDistract = useRef(false);
+
+  // Kategori Listesi
   const categories = [
     { id: '1', name: 'Kodlama', icon: 'code-slash' },
     { id: '2', name: 'Ders Çalışma', icon: 'school' },
@@ -29,6 +35,39 @@ export default function HomeScreen() {
     { id: '5', name: 'Spor', icon: 'fitness' },
     { id: '6', name: 'Meditasyon', icon: 'leaf' },
   ];
+
+  // --- APP STATE (ODAKLANMA TAKİBİ) ---
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      
+      // 1. SENARYO: Uygulamadan Çıkılıyor (Background'a geçiş)
+      if (
+        appState.current.match(/active/) && 
+        nextAppState.match(/inactive|background/) && 
+        isActive
+      ) {
+        setIsActive(false); // Sayacı durdur
+        setDistractionCount(prev => prev + 1); // Hatayı 1 artır
+        didDistract.current = true; // "Kaçtı" diye not al
+      }
+
+      // 2. SENARYO: Uygulamaya Geri Dönülüyor (Active'e geçiş)
+      if (
+        appState.current.match(/inactive|background/) && 
+        nextAppState === 'active' &&
+        didDistract.current // Eğer kaçtığı için not almışsak
+      ) {
+        Alert.alert("Dikkat!", "Uygulamadan ayrıldığın için sayaç duraklatıldı.");
+        didDistract.current = false; // Notu sıfırla
+      }
+
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isActive]);
 
   // --- ZAMANLAYICI MANTIĞI ---
   useEffect(() => {
@@ -64,12 +103,12 @@ export default function HomeScreen() {
   const handleReset = () => {
     setIsActive(false);
     setTimeLeft(initialTime);
+    setDistractionCount(0); // Sıfırlayınca hataları da temizle
   };
 
-  // Kategori Seçilince Çalışacak Fonksiyon
   const handleSelectCategory = (categoryName) => {
-    setSelectedCategory(categoryName); // Seçimi güncelle
-    setModalVisible(false); // Pencereyi kapat
+    setSelectedCategory(categoryName);
+    setModalVisible(false);
   };
 
   const progress = timeLeft / initialTime; 
@@ -80,56 +119,47 @@ export default function HomeScreen() {
       
       <Text style={styles.headerTitle}>Focuser</Text>
 
-      {/* --- KATEGORİ SEÇİM BUTONU --- */}
-      <View style={styles.categoryContainer}>
-        <Text style={styles.categoryLabel}>Şu anki Hedef:</Text>
-        
-        {/* Tıklayınca Modal açılacak */}
+      {/* --- ÜST BİLGİ ALANI --- */}
+      <View style={styles.infoRow}>
+        {/* Kategori Seçimi */}
         <TouchableOpacity 
-          style={styles.categoryButton} 
+          style={styles.categoryBadge} 
           onPress={() => setModalVisible(true)}
-          disabled={isActive} // Sayaç çalışırken kategori değiştirilemez
+          disabled={isActive}
         >
-          <Text style={styles.categoryButtonText}>{selectedCategory} ▼</Text>
+          <Text style={styles.categoryBadgeText}>{selectedCategory} ▼</Text>
         </TouchableOpacity>
+
+        {/* Dikkat Kaybı Sayacı */}
+        <View style={styles.distractionBadge}>
+          <Ionicons name="alert-circle" size={16} color="#d32f2f" />
+          <Text style={styles.distractionText}> {distractionCount}</Text>
+        </View>
       </View>
 
-      {/* --- MODAL (AÇILIR PENCERE) --- */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
+      {/* --- MODAL (KATEGORİ PENCERESİ) --- */}
+      <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Bir Kategori Seç</Text>
-            
             <FlatList
               data={categories}
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
-                <TouchableOpacity 
-                  style={styles.modalItem} 
-                  onPress={() => handleSelectCategory(item.name)}
-                >
+                <TouchableOpacity style={styles.modalItem} onPress={() => handleSelectCategory(item.name)}>
                   <Ionicons name={item.icon} size={24} color="#555" style={{ marginRight: 15 }} />
                   <Text style={styles.modalItemText}>{item.name}</Text>
                 </TouchableOpacity>
               )}
             />
-
-            <TouchableOpacity 
-              style={styles.closeButton} 
-              onPress={() => setModalVisible(false)}
-            >
+            <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
               <Text style={styles.closeButtonText}>Kapat</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* --- SAYAÇ --- */}
+      {/* --- SAYAÇ VE SVG --- */}
       <View style={styles.timerWrapper}>
         {!isActive && (
           <TouchableOpacity onPress={() => changeTime(-5)} style={styles.adjustButton}>
@@ -156,6 +186,7 @@ export default function HomeScreen() {
           </Svg>
           <View style={styles.textOverlay}>
             <Text style={styles.timerText}>{formatTime(timeLeft)}</Text>
+            <Text style={styles.statusText}>{isActive ? 'Odaklan!' : 'Hazır'}</Text>
           </View>
         </View>
 
@@ -166,7 +197,7 @@ export default function HomeScreen() {
         )}
       </View>
 
-      {/* --- BUTONLAR --- */}
+      {/* --- KONTROL BUTONLARI --- */}
       <View style={styles.buttonContainer}>
         {!isActive ? (
           <TouchableOpacity style={[styles.button, styles.startButton]} onPress={handleStart}>
@@ -191,71 +222,27 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 32, fontWeight: 'bold', marginBottom: 20, color: '#333' },
   
-  // Kategori Butonu
-  categoryContainer: { marginBottom: 20, alignItems: 'center' },
-  categoryLabel: { fontSize: 14, color: '#666', marginBottom: 5 },
-  categoryButton: { 
-    backgroundColor: '#f8f9fa', 
-    paddingHorizontal: 25, 
-    paddingVertical: 12, 
-    borderRadius: 25, 
-    borderWidth: 1, 
-    borderColor: '#ddd' 
-  },
-  categoryButtonText: { fontSize: 18, fontWeight: '600', color: '#333' },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 15, marginBottom: 30 },
+  categoryBadge: { backgroundColor: '#e3f2fd', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#90caf9' },
+  categoryBadgeText: { fontSize: 16, fontWeight: '600', color: '#1565c0' },
+  distractionBadge: { backgroundColor: '#ffebee', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#ef9a9a' },
+  distractionText: { fontSize: 16, fontWeight: 'bold', color: '#d32f2f' },
 
-  // --- MODAL STİLLERİ ---
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)', // Arka planı karartma
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    width: '80%',
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 20,
-    maxHeight: '60%', // Ekranın %60'ını kaplasın
-    elevation: 5,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 15,
-    textAlign: 'center',
-    color: '#333',
-  },
-  modalItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  modalItemText: {
-    fontSize: 18,
-    color: '#333',
-  },
-  closeButton: {
-    marginTop: 15,
-    backgroundColor: 'tomato',
-    padding: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { width: '80%', backgroundColor: 'white', borderRadius: 20, padding: 20, maxHeight: '60%', elevation: 5 },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 15, textAlign: 'center', color: '#333' },
+  modalItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  modalItemText: { fontSize: 18, color: '#333' },
+  closeButton: { marginTop: 15, backgroundColor: 'tomato', padding: 10, borderRadius: 10, alignItems: 'center' },
+  closeButtonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
 
-  // Sayaç Stilleri (Aynı)
   timerWrapper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 40 },
   adjustButton: { padding: 10, zIndex: 10 },
   svgContainer: { width: CIRCLE_SIZE, height: CIRCLE_SIZE, alignItems: 'center', justifyContent: 'center' },
   textOverlay: { position: 'absolute', justifyContent: 'center', alignItems: 'center' },
   timerText: { fontSize: 50, fontWeight: 'bold', color: 'tomato' },
+  statusText: { fontSize: 14, color: '#666', marginTop: 5, textTransform: 'uppercase', letterSpacing: 1 },
+
   buttonContainer: { flexDirection: 'row', gap: 15 },
   button: { paddingVertical: 15, paddingHorizontal: 30, borderRadius: 15, minWidth: 100, alignItems: 'center' },
   startButton: { backgroundColor: '#4CAF50' },
