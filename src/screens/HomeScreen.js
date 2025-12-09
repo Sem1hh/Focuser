@@ -16,14 +16,16 @@ export default function HomeScreen() {
   const [timeLeft, setTimeLeft] = useState(25 * 60);       
   const [isActive, setIsActive] = useState(false);         
   const [selectedCategory, setSelectedCategory] = useState('Kodlama');
-  const [modalVisible, setModalVisible] = useState(false);
   
-  // Dikkat Dağınıklığı Sayısı
+  // Modallar
+  const [modalVisible, setModalVisible] = useState(false); // Kategori seçimi için
+  const [summaryVisible, setSummaryVisible] = useState(false); // YENİ: Seans özeti için
+  
+  // İstatistikler
   const [distractionCount, setDistractionCount] = useState(0);
 
-  // AppState Referansı (Uygulamanın durumu)
+  // AppState Referansı
   const appState = useRef(AppState.currentState);
-  // "Kullanıcı az önce çıktı mı?" kontrolü için bayrak
   const didDistract = useRef(false);
 
   // Kategori Listesi
@@ -39,34 +41,18 @@ export default function HomeScreen() {
   // --- APP STATE (ODAKLANMA TAKİBİ) ---
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
-      
-      // 1. SENARYO: Uygulamadan Çıkılıyor (Background'a geçiş)
-      if (
-        appState.current.match(/active/) && 
-        nextAppState.match(/inactive|background/) && 
-        isActive
-      ) {
-        setIsActive(false); // Sayacı durdur
-        setDistractionCount(prev => prev + 1); // Hatayı 1 artır
-        didDistract.current = true; // "Kaçtı" diye not al
+      if (appState.current.match(/active/) && nextAppState.match(/inactive|background/) && isActive) {
+        setIsActive(false);
+        setDistractionCount(prev => prev + 1);
+        didDistract.current = true;
       }
-
-      // 2. SENARYO: Uygulamaya Geri Dönülüyor (Active'e geçiş)
-      if (
-        appState.current.match(/inactive|background/) && 
-        nextAppState === 'active' &&
-        didDistract.current // Eğer kaçtığı için not almışsak
-      ) {
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active' && didDistract.current) {
         Alert.alert("Dikkat!", "Uygulamadan ayrıldığın için sayaç duraklatıldı.");
-        didDistract.current = false; // Notu sıfırla
+        didDistract.current = false;
       }
-
       appState.current = nextAppState;
     });
-
-    return () => {
-      subscription.remove();
-    };
+    return () => subscription.remove();
   }, [isActive]);
 
   // --- ZAMANLAYICI MANTIĞI ---
@@ -77,13 +63,14 @@ export default function HomeScreen() {
         setTimeLeft((prevTime) => prevTime - 1);
       }, 1000);
     } else if (timeLeft === 0) {
+      // Süre bittiğinde otomatik olarak Özeti Göster
       setIsActive(false);
-      Alert.alert("Tebrikler!", "Odaklanma seansını başarıyla tamamladın.");
-      setTimeLeft(initialTime); 
+      setSummaryVisible(true);
     }
     return () => clearInterval(interval);
-  }, [isActive, timeLeft, initialTime]);
+  }, [isActive, timeLeft]);
 
+  // --- YARDIMCI FONKSİYONLAR ---
   const formatTime = (seconds) => {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -100,10 +87,17 @@ export default function HomeScreen() {
 
   const handleStart = () => setIsActive(true);
   const handlePause = () => setIsActive(false);
+  
+  // Sıfırla / Bitir Butonu
   const handleReset = () => {
+    // Eğer süre hiç başlamamışsa veya tamamsa direkt sıfırla
+    if (timeLeft === initialTime) {
+      setDistractionCount(0);
+      return;
+    }
+    // Eğer seansın ortasındaysak kullanıcıya özeti gösterip bitirtelim
     setIsActive(false);
-    setTimeLeft(initialTime);
-    setDistractionCount(0); // Sıfırlayınca hataları da temizle
+    setSummaryVisible(true);
   };
 
   const handleSelectCategory = (categoryName) => {
@@ -111,33 +105,45 @@ export default function HomeScreen() {
     setModalVisible(false);
   };
 
+  // --- SEANS KAYDETME / SİLME ---
+  const saveSession = () => {
+    // BURASI YARIN (7. GÜN) DOLDURULACAK
+    console.log("Seans Kaydedildi (Simülasyon)"); 
+    closeSummary();
+  };
+
+  const discardSession = () => {
+    console.log("Seans Silindi");
+    closeSummary();
+  };
+
+  const closeSummary = () => {
+    setSummaryVisible(false);
+    setTimeLeft(initialTime);
+    setDistractionCount(0);
+  };
+
+  // Geçen süreyi hesapla (Toplam - Kalan)
+  const timeSpent = initialTime - timeLeft;
   const progress = timeLeft / initialTime; 
   const strokeDashoffset = CIRCUMFERENCE * (1 - progress);
 
   return (
     <View style={styles.container}>
-      
       <Text style={styles.headerTitle}>Focuser</Text>
 
-      {/* --- ÜST BİLGİ ALANI --- */}
+      {/* ÜST BİLGİ */}
       <View style={styles.infoRow}>
-        {/* Kategori Seçimi */}
-        <TouchableOpacity 
-          style={styles.categoryBadge} 
-          onPress={() => setModalVisible(true)}
-          disabled={isActive}
-        >
+        <TouchableOpacity style={styles.categoryBadge} onPress={() => setModalVisible(true)} disabled={isActive}>
           <Text style={styles.categoryBadgeText}>{selectedCategory} ▼</Text>
         </TouchableOpacity>
-
-        {/* Dikkat Kaybı Sayacı */}
         <View style={styles.distractionBadge}>
           <Ionicons name="alert-circle" size={16} color="#d32f2f" />
           <Text style={styles.distractionText}> {distractionCount}</Text>
         </View>
       </View>
 
-      {/* --- MODAL (KATEGORİ PENCERESİ) --- */}
+      {/* --- KATEGORİ SEÇİM MODALI --- */}
       <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -159,14 +165,45 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
-      {/* --- SAYAÇ VE SVG --- */}
+      {/* --- YENİ: SEANS ÖZETİ MODALI --- */}
+      <Modal animationType="fade" transparent={true} visible={summaryVisible} onRequestClose={() => {}}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.summaryCard}>
+            <Ionicons name="trophy" size={50} color="#FFD700" style={{ marginBottom: 10 }} />
+            <Text style={styles.summaryTitle}>Seans Bitti!</Text>
+            
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Kategori:</Text>
+              <Text style={styles.summaryValue}>{selectedCategory}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Odaklanma:</Text>
+              <Text style={styles.summaryValue}>{formatTime(timeSpent)} dk</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Dikkat Kaybı:</Text>
+              <Text style={styles.summaryValue}>{distractionCount}</Text>
+            </View>
+
+            <View style={styles.summaryButtons}>
+              <TouchableOpacity style={styles.discardButton} onPress={discardSession}>
+                <Text style={styles.discardButtonText}>Sil</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveButton} onPress={saveSession}>
+                <Text style={styles.saveButtonText}>Kaydet</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* SAYAÇ */}
       <View style={styles.timerWrapper}>
         {!isActive && (
           <TouchableOpacity onPress={() => changeTime(-5)} style={styles.adjustButton}>
             <Ionicons name="remove-circle-outline" size={40} color="gray" />
           </TouchableOpacity>
         )}
-
         <View style={styles.svgContainer}>
           <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE}>
             <Circle stroke="#e6e6e6" fill="none" cx={CIRCLE_SIZE / 2} cy={CIRCLE_SIZE / 2} r={RADIUS} strokeWidth={STROKE_WIDTH} />
@@ -189,7 +226,6 @@ export default function HomeScreen() {
             <Text style={styles.statusText}>{isActive ? 'Odaklan!' : 'Hazır'}</Text>
           </View>
         </View>
-
         {!isActive && (
           <TouchableOpacity onPress={() => changeTime(5)} style={styles.adjustButton}>
             <Ionicons name="add-circle-outline" size={40} color="gray" />
@@ -197,7 +233,7 @@ export default function HomeScreen() {
         )}
       </View>
 
-      {/* --- KONTROL BUTONLARI --- */}
+      {/* BUTONLAR */}
       <View style={styles.buttonContainer}>
         {!isActive ? (
           <TouchableOpacity style={[styles.button, styles.startButton]} onPress={handleStart}>
@@ -208,12 +244,11 @@ export default function HomeScreen() {
             <Text style={styles.buttonText}>Duraklat</Text>
           </TouchableOpacity>
         )}
-
         <TouchableOpacity style={[styles.button, styles.resetButton]} onPress={handleReset}>
+          {/* Eğer süre ilerlediyse butonun anlamı değişir ama yazısı aynı kalsın */}
           <Text style={styles.buttonText}>Sıfırla</Text>
         </TouchableOpacity>
       </View>
-
     </View>
   );
 }
@@ -228,7 +263,10 @@ const styles = StyleSheet.create({
   distractionBadge: { backgroundColor: '#ffebee', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#ef9a9a' },
   distractionText: { fontSize: 16, fontWeight: 'bold', color: '#d32f2f' },
 
+  // Ortak Modal Overlay
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  
+  // Kategori Modal İçeriği
   modalContent: { width: '80%', backgroundColor: 'white', borderRadius: 20, padding: 20, maxHeight: '60%', elevation: 5 },
   modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 15, textAlign: 'center', color: '#333' },
   modalItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
@@ -236,13 +274,25 @@ const styles = StyleSheet.create({
   closeButton: { marginTop: 15, backgroundColor: 'tomato', padding: 10, borderRadius: 10, alignItems: 'center' },
   closeButtonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
 
+  // --- YENİ: ÖZET KARTI STİLLERİ ---
+  summaryCard: { width: '85%', backgroundColor: 'white', borderRadius: 20, padding: 25, alignItems: 'center', elevation: 10 },
+  summaryTitle: { fontSize: 24, fontWeight: 'bold', color: '#333', marginBottom: 20 },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 10, borderBottomWidth: 1, borderBottomColor: '#f0f0f0', paddingBottom: 5 },
+  summaryLabel: { fontSize: 16, color: '#666' },
+  summaryValue: { fontSize: 18, fontWeight: 'bold', color: '#333' },
+  summaryButtons: { flexDirection: 'row', gap: 15, marginTop: 20, width: '100%' },
+  saveButton: { flex: 1, backgroundColor: '#4CAF50', padding: 15, borderRadius: 10, alignItems: 'center' },
+  saveButtonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+  discardButton: { flex: 1, backgroundColor: '#F44336', padding: 15, borderRadius: 10, alignItems: 'center' },
+  discardButtonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+
+  // Sayaç ve Butonlar (Eskisiyle aynı)
   timerWrapper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 40 },
   adjustButton: { padding: 10, zIndex: 10 },
   svgContainer: { width: CIRCLE_SIZE, height: CIRCLE_SIZE, alignItems: 'center', justifyContent: 'center' },
   textOverlay: { position: 'absolute', justifyContent: 'center', alignItems: 'center' },
   timerText: { fontSize: 50, fontWeight: 'bold', color: 'tomato' },
   statusText: { fontSize: 14, color: '#666', marginTop: 5, textTransform: 'uppercase', letterSpacing: 1 },
-
   buttonContainer: { flexDirection: 'row', gap: 15 },
   button: { paddingVertical: 15, paddingHorizontal: 30, borderRadius: 15, minWidth: 100, alignItems: 'center' },
   startButton: { backgroundColor: '#4CAF50' },
