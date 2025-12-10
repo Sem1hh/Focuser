@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, Dimensions, Modal, FlatList, AppState } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
+import { saveCompletedSession } from '../utils/storage';
 
 // Ekran boyutları ve SVG Ayarları
 const { width } = Dimensions.get('window');
@@ -106,9 +107,20 @@ export default function HomeScreen() {
   };
 
   // --- SEANS KAYDETME / SİLME ---
-  const saveSession = () => {
-    // BURASI YARIN (7. GÜN) DOLDURULACAK
-    console.log("Seans Kaydedildi (Simülasyon)"); 
+  // --- SEANS KAYDETME ---
+  const saveSession = async () => {
+    // 1. Kaydedilecek veriyi hazırla
+    const sessionData = {
+      category: selectedCategory,
+      duration: initialTime - timeLeft, // Saniye cinsinden çalışılan süre
+      distractions: distractionCount,
+    };
+
+    // 2. storage.js içindeki fonksiyonu çağır
+    await saveCompletedSession(sessionData);
+
+    // 3. Pencereyi kapat ve kullanıcıya bilgi ver (Opsiyonel Alert)
+    Alert.alert("Başarılı", "Seans verileri kaydedildi!");
     closeSummary();
   };
 
