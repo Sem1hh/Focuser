@@ -33,15 +33,19 @@ Projeyi kendi bilgisayarınızda çalıştırmak için aşağıdaki adımları i
 
 
 2. **Proje Klasörüne Girin:**
-   ``` cd Focuser
+   ```bash 
+   cd Focuser
 
 3. **Gerekli Paketleri Yükleyin:**
-      ``` npm install
+      ```bash 
+      npm install
 
 4. **Uygulamayı Başlatın:**
-      ``` npx expo start
+      ```bash 
+      npx expo start
 
 
 5. **Test Edin:**
-      ``` Terminalde çıkan QR kodu telefonunuzdaki Expo Go uygulaması ile taratın.
+      ```bash 
+      Terminalde çıkan QR kodu telefonunuzdaki Expo Go uygulaması ile taratın.
 
