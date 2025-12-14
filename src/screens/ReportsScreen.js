@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Dimensions } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getAllSessions } from '../utils/storage';
+import { getAllSessions, getSettings } from '../utils/storage'; // getSettings eklendi
 import { Ionicons } from '@expo/vector-icons';
 import { BarChart, PieChart } from 'react-native-chart-kit';
 
@@ -21,6 +21,7 @@ export default function ReportsScreen() {
   });
   
   const [pieData, setPieData] = useState([]);
+  const [isDark, setIsDark] = useState(false); // Karanlık Mod Durumu
 
   useFocusEffect(
     useCallback(() => {
@@ -29,10 +30,15 @@ export default function ReportsScreen() {
   );
 
   const loadData = async () => {
+    // 1. Önce Ayarları Kontrol Et (Karanlık Mod Açık mı?)
+    const settings = await getSettings();
+    setIsDark(settings.darkMode);
+
+    // 2. Verileri Çek
     const data = await getAllSessions();
     calculateStats(data);
     prepareBarChartData(data);
-    preparePieChartData(data);
+    preparePieChartData(data, settings.darkMode); // Pie chart renkleri için modu gönderiyoruz
   };
 
   const calculateStats = (data) => {
@@ -57,7 +63,6 @@ export default function ReportsScreen() {
     });
   };
 
-  // ÇUBUK GRAFİK VERİSİ
   const prepareBarChartData = (data) => {
     const last7Days = [];
     const values = [];
@@ -72,8 +77,16 @@ export default function ReportsScreen() {
     }
 
     data.forEach(session => {
-      const sessionDate = session.date.split('T')[0];
-      const index = last7Days.findIndex(day => day.date === sessionDate);
+      const sessionDate = session.date.split('T')[0]; // Tarih formatına dikkat (ISO string kullanıyorsak)
+      // Eğer storage.js'de toString() yaptıysak buradaki eşleştirme mantığını değiştirmek gerekebilir.
+      // Ama şimdilik ISO formatı varsayıyoruz veya tarih eşleşmesini basit tutuyoruz.
+      // Not: Önceki adımda storage.js'i toString() yaptık. Burada tarih karşılaştırması için
+      // basit bir yöntem kullanalım:
+      
+      const sessDateObj = new Date(session.date);
+      const sessDateStr = sessDateObj.toISOString().split('T')[0];
+      
+      const index = last7Days.findIndex(day => day.date === sessDateStr);
       if (index !== -1) {
         values[index] += Math.ceil(session.duration / 60);
       }
@@ -85,8 +98,7 @@ export default function ReportsScreen() {
     });
   };
 
-  // PASTA GRAFİK VERİSİ
-  const preparePieChartData = (data) => {
+  const preparePieChartData = (data, isDarkMode) => {
     const categoryMap = {};
 
     data.forEach(session => {
@@ -104,13 +116,13 @@ export default function ReportsScreen() {
         name: category,
         population: categoryMap[category],
         color: colors[colorIndex++ % colors.length],
-        legendFontColor: '#7F7F7F',
+        legendFontColor: isDarkMode ? '#ccc' : '#7F7F7F', // Yazı rengini moda göre ayarla
         legendFontSize: 12,
       };
     });
 
     if (chartData.length === 0) {
-      setPieData([{ name: 'Veri Yok', population: 1, color: '#e0e0e0', legendFontColor: '#7F7F7F', legendFontSize: 12 }]);
+      setPieData([{ name: 'Veri Yok', population: 1, color: '#e0e0e0', legendFontColor: isDarkMode ? '#ccc' : '#7F7F7F', legendFontSize: 12 }]);
     } else {
       setPieData(chartData);
     }
@@ -123,27 +135,36 @@ export default function ReportsScreen() {
     return `${minutes} dk`;
   };
 
+  // --- STİL DEĞİŞKENLERİ ---
+  const containerStyle = isDark ? styles.darkContainer : styles.container;
+  const titleStyle = isDark ? styles.darkTitle : styles.headerTitle;
+  const cardStyle = isDark ? styles.darkCard : styles.card;
+  const labelStyle = isDark ? styles.darkLabel : styles.cardLabel;
+  const valueStyle = isDark ? styles.darkValue : styles.cardValue;
+  const chartBg = isDark ? '#1e1e1e' : '#fff';
+  const chartLabelColor = (opacity = 1) => isDark ? `rgba(255, 255, 255, ${opacity})` : `rgba(0, 0, 0, ${opacity})`;
+
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.headerTitle}>Raporlar</Text>
+    <ScrollView style={containerStyle}>
+      <Text style={titleStyle}>Raporlar</Text>
 
       {/* Kartlar */}
       <View style={styles.statsGrid}>
-        <View style={[styles.card, styles.cardBlue]}>
-          <Ionicons name="today-outline" size={24} color="#1565c0" />
-          <Text style={styles.cardLabel}>Bugün</Text>
-          <Text style={styles.cardValue}>{formatTime(stats.todayTime)}</Text>
+        <View style={[cardStyle, styles.cardBlue]}>
+          <Ionicons name="today-outline" size={24} color="#42a5f5" />
+          <Text style={labelStyle}>Bugün</Text>
+          <Text style={valueStyle}>{formatTime(stats.todayTime)}</Text>
         </View>
-        <View style={[styles.card, styles.cardGreen]}>
-          <Ionicons name="time-outline" size={24} color="#2e7d32" />
-          <Text style={styles.cardLabel}>Toplam</Text>
-          <Text style={styles.cardValue}>{formatTime(stats.totalTime)}</Text>
+        <View style={[cardStyle, styles.cardGreen]}>
+          <Ionicons name="time-outline" size={24} color="#66bb6a" />
+          <Text style={labelStyle}>Toplam</Text>
+          <Text style={valueStyle}>{formatTime(stats.totalTime)}</Text>
         </View>
       </View>
 
       {/* Çubuk Grafik */}
-      <View style={styles.chartContainer}>
-        <Text style={styles.chartTitle}>Son 7 Gün (Dakika)</Text>
+      <View style={[styles.chartContainer, { backgroundColor: chartBg }]}>
+        <Text style={[styles.chartTitle, isDark && styles.darkText]}>Son 7 Gün (Dakika)</Text>
         <BarChart
           data={barData}
           width={screenWidth - 60} 
@@ -153,12 +174,12 @@ export default function ReportsScreen() {
           fromZero={true}
           segments={3}
           chartConfig={{
-            backgroundColor: '#fff',
-            backgroundGradientFrom: '#fff',
-            backgroundGradientTo: '#fff',
+            backgroundColor: chartBg,
+            backgroundGradientFrom: chartBg,
+            backgroundGradientTo: chartBg,
             decimalPlaces: 0,
             color: (opacity = 1) => `rgba(66, 165, 245, ${opacity})`,
-            labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+            labelColor: chartLabelColor, // Dinamik yazı rengi
             propsForLabels: {
               fontSize: 10,
             },
@@ -167,20 +188,20 @@ export default function ReportsScreen() {
           style={{ 
             borderRadius: 16,
             paddingRight: 30,
-            paddingLeft: 20, // DÜZELTME: Soldan taşmayı engellemek için boşluk eklendi
+            paddingLeft: 20,
           }}
         />
       </View>
 
       {/* Pasta Grafik */}
-      <View style={styles.chartContainer}>
-        <Text style={styles.chartTitle}>Kategori Dağılımı</Text>
+      <View style={[styles.chartContainer, { backgroundColor: chartBg }]}>
+        <Text style={[styles.chartTitle, isDark && styles.darkText]}>Kategori Dağılımı</Text>
         <PieChart
           data={pieData}
           width={screenWidth - 40}
           height={220}
           chartConfig={{
-            color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+            color: chartLabelColor,
           }}
           accessor={"population"}
           backgroundColor={"transparent"}
@@ -195,18 +216,27 @@ export default function ReportsScreen() {
 }
 
 const styles = StyleSheet.create({
+  // LIGHT MODE
   container: { flex: 1, backgroundColor: '#f5f5f5', padding: 20 },
   headerTitle: { fontSize: 28, fontWeight: 'bold', marginBottom: 20, color: '#333' },
-  
-  statsGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
   card: { width: '48%', backgroundColor: 'white', padding: 15, borderRadius: 15, alignItems: 'center', elevation: 3 },
   cardLabel: { fontSize: 14, color: '#666', marginTop: 5 },
   cardValue: { fontSize: 18, fontWeight: 'bold', marginTop: 5, color: '#333' },
+  
+  // DARK MODE
+  darkContainer: { flex: 1, backgroundColor: '#121212', padding: 20 },
+  darkTitle: { fontSize: 28, fontWeight: 'bold', marginBottom: 20, color: '#fff' },
+  darkCard: { width: '48%', backgroundColor: '#1e1e1e', padding: 15, borderRadius: 15, alignItems: 'center' },
+  darkLabel: { fontSize: 14, color: '#ccc', marginTop: 5 },
+  darkValue: { fontSize: 18, fontWeight: 'bold', marginTop: 5, color: '#fff' },
+  darkText: { color: '#fff' },
+
+  // ORTAK
+  statsGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
   cardBlue: { borderTopWidth: 4, borderTopColor: '#42a5f5' },
   cardGreen: { borderTopWidth: 4, borderTopColor: '#66bb6a' },
 
   chartContainer: {
-    backgroundColor: 'white',
     borderRadius: 20,
     padding: 15,
     marginBottom: 20,
